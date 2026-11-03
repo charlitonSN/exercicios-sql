@@ -278,14 +278,68 @@ GROUP BY t1.IdCliente, idade_base
 
 
 -- 5. Quantidade de transações Acumuladas ao longo do tempo?
-SELECT *
+WITH total_trans AS (
+    SELECT
+        DATE(DtCriacao) AS data_transacao,
+        COUNT(IdTransacao) AS qtd_trans
+    FROM transacoes
+    GROUP BY data_transacao
+)
 
-FROM transacoes
-
+SELECT
+    data_transacao,
+    SUM(qtd_trans) OVER (
+        ORDER BY data_transacao
+    ) AS trans_acumuladas
+FROM total_trans
+ORDER BY data_transacao;
 
 
 -- 6. Quantidade de usuários cadastrados (absoluto e acumulado) ao longo do tempo?
+WITH total_clientes AS (
+	SELECT 
+		DATE(DtCriacao) AS data_cadastro,
+        COUNT(idCliente) AS qtd_absoluto
+	FROM clientes
+	GROUP BY data_cadastro
+)
+
+SELECT 
+	*,
+	SUM(qtd_absoluto) OVER (ORDER BY data_cadastro) AS qtd_acumulado
+
+FROM total_clientes
+
+
 -- 7. Qual o dia da semana mais ativo de cada usuário?
+WITH total_trans AS (
+    SELECT
+        IdCliente,
+        COUNT(IdTransacao) AS qtd_trans,
+        STRFTIME('%w', DtCriacao) AS dias_semana
+    FROM transacoes
+    GROUP BY IdCliente, dias_semana
+),
+ranking AS (
+    SELECT
+        IdCliente,
+        dias_semana,
+        qtd_trans,
+        ROW_NUMBER() OVER (
+            PARTITION BY IdCliente
+            ORDER BY qtd_trans DESC, dias_semana ASC
+        ) AS ranking
+    FROM total_trans
+)
+SELECT
+    IdCliente,
+    dias_semana,
+    qtd_trans
+FROM ranking
+WHERE ranking = 1
+ORDER BY IdCliente;
+
+
 -- 8. Saldo de pontos acumulado de cada usuário
 
 
@@ -317,7 +371,7 @@ WHERE IdCliente IN (
 					SELECT DISTINCT IdCliente
 					FROM transacoes
 					WHERE DATE(DtCriacao) = '2025-08-25')
-AND DATE(DtCriacao) = '2025-08-29'
+AND DATE(DtCriacao) = '2025-08-29';
 
 
 -- 10. Como foi a curva de Churn do Curso de SQL?
@@ -338,28 +392,103 @@ GROUP BY IdCliente;
 
 
 -- 11. Quem iniciou o curso no primeiro dia, em média assistiu quantas aulas? 
-SELECT *
+WITH iniciou AS (
+    SELECT DISTINCT IdCliente
+    FROM transacoes
+    WHERE DATE(DtCriacao) = '2025-08-25'
+),
 
-FROM transacoes
-
-WHERE IdCliente IN (
-					SELECT DISTINCT IdCliente
-					FROM transacoes
-					WHERE DATE(DtCriacao) = '2025-08-25'
+total_aulas AS (
+	SELECT
+    	IdCliente,
+    	COUNT(DISTINCT DATE(DtCriacao)) AS aulas_frequentadas
+	FROM transacoes
+	WHERE IdCliente IN (SELECT IdCliente FROM iniciou)
+ 	 AND DATE(DtCriacao) BETWEEN '2025-08-25' AND '2025-08-29'
+	GROUP BY IdCliente
 )
 
+SELECT ROUND(AVG(aulas_frequentadas), 2) AS media_aula
 
-
-
-
-
-
-
-
-
-
+FROM total_aulas;
 
 
 -- 12. Dentre os clientes de janeiro/2025, quantos assistiram o curso de SQL?
--- 13. Qual o dia com maior engajamento de cada aluno que iniciou o curso no dia 01?
+WITH cadastro_janeiro AS (
+	SELECT idCliente
 
+	FROM clientes
+
+	WHERE strftime('%Y-%m', DtCriacao) = '2025-01'
+)
+
+SELECT COUNT(DISTINCT t1.IdCliente)
+
+FROM transacoes t1
+
+INNER JOIN cadastro_janeiro t2
+ON t1.IdCliente = t2.IdCliente
+
+WHERE DATE(DtCriacao) BETWEEN '2025-08-25' AND '2025-08-29';
+
+
+-- 13. Qual o dia com maior engajamento de cada aluno que iniciou o curso no dia 01?
+WITH inicio_sql AS (
+	SELECT 
+		DISTINCT IdCliente
+	FROM transacoes
+	WHERE DATE(DtCriacao) = '2025-08-25'
+),
+
+total_transacao AS (
+	SELECT IdCliente, DtCriacao, COUNT(IdTransacao) AS qtd_trans
+
+	FROM transacoes
+
+	WHERE IdCliente IN (SELECT * FROM inicio_sql) 
+	AND DATE(DtCriacao) BETWEEN '2025-08-25' AND '2025-08-29'
+
+	GROUP BY IdCliente, DATE(DtCriacao)
+)
+
+SELECT 
+	IdCliente, DATE(DtCriacao) AS data_engajamento, MAX(qtd_trans) AS qtd_maxima
+
+FROM total_transacao
+
+GROUP BY IdCliente;
+
+
+-- Resposta utilizando windowns functions
+WITH inicio_sql AS (
+    SELECT DISTINCT IdCliente
+    FROM transacoes
+    WHERE DATE(DtCriacao) = '2025-08-25'
+),
+
+total_transacao AS (
+    SELECT
+        IdCliente,
+        DATE(DtCriacao) AS data_transacao,
+        COUNT(IdTransacao) AS qtd_trans
+    FROM transacoes
+    WHERE IdCliente IN (SELECT IdCliente FROM inicio_sql)
+      AND DATE(DtCriacao) BETWEEN '2025-08-25' AND '2025-08-29'
+    GROUP BY IdCliente, DATE(DtCriacao)
+),
+ranking AS (
+    SELECT
+        IdCliente,
+        data_transacao,
+        qtd_trans,
+        ROW_NUMBER() OVER (PARTITION BY IdCliente ORDER BY qtd_trans DESC) AS ranking
+    FROM total_transacao
+)
+
+SELECT
+    IdCliente,
+    data_transacao AS data_engajamento,
+    qtd_trans AS qtd_maxima
+FROM ranking
+WHERE ranking = 1
+ORDER BY IdCliente;
