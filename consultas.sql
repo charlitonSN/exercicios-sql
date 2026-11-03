@@ -87,16 +87,7 @@ LEFT JOIN produtos t3 ON t2.IdProduto = t3.IdProduto
 WHERE t3.DescCategoriaProduto = 'streamelements' AND strftime('%Y-%m', t1.DtCriacao) = '2025-06'
 
 
-
-
-
-
-
-
-
-
--- Tempo de Foco
-
+--########### Tempo de Foco 1 ###########
 
 -- 1. Lista de transações com apenas 1 ponto;
 SELECT * FROM transacoes WHERE QtdePontos = 1;
@@ -142,9 +133,7 @@ SELECT *,
 FROM transacoes;
 
 
-
--- Tempo de foco (Group By)
-
+--########### Tempo de Foco 2 (group by) ###########
 
 -- 1. Quantos clientes tem email cadastrado?
 SELECT SUM(flEmail) AS qtd_email FROM clientes 
@@ -223,7 +212,154 @@ ORDER BY total_pts DESC
 LIMIT 1
 
 
+--########### Tempo de Foco 3 ###########
+
+-- 1. Quais clientes mais perderam pontos por Lover?
+SELECT t1.IdCliente, SUM(t1.QtdePontos) AS qtd_pts
+
+FROM transacoes t1
+LEFT JOIN transacao_produto t2 ON t1.IdTransacao = t2.IdTransacao
+LEFT JOIN produtos t3 ON t2.IdProduto = t3.IdProduto
+
+WHERE DescCategoriaProduto = 'lovers'
+
+GROUP BY t1.IdCliente
+ORDER BY qtd_pts ASC
+LIMIT 5;
+
+
+-- 2. Quais clientes assinaram a lista de presença no dia 2025/08/25?
+SELECT DISTINCT t1.IdCliente, DATE(t1.DtCriacao) AS dia, t3.DescCategoriaProduto
+
+FROM transacoes t1
+LEFT JOIN transacao_produto t2 ON t1.IdTransacao = t2.IdTransacao
+LEFT JOIN produtos t3 ON t2.IdProduto = t3.IdProduto
+
+WHERE DescCategoriaProduto = 'present' AND DATE(t1.DtCriacao) = '2025-08-25'
+
+
+-- 3. Do início ao fim do nosso curso (2025/08/25 a 2025/08/29), quantos clientes assinaram a lista de presença?
+SELECT COUNT(DISTINCT t1.IdCliente) AS qtd_clientes
+
+FROM transacoes t1
+LEFT JOIN transacao_produto t2 ON t1.IdTransacao = t2.IdTransacao
+LEFT JOIN produtos t3 ON t2.IdProduto = t3.IdProduto
+
+WHERE DescCategoriaProduto = 'present' AND (DATE(t1.DtCriacao) >= '2025-08-25' AND DATE(t1.DtCriacao) <= '2025-08-29')
+
+
+-- 4. Clientes mais antigos, tem mais frequência de transação?
+SELECT
+    CASE
+        WHEN DATE(t1.DtCriacao) < '2024-10-01' THEN 'Cliente antigo'
+		WHEN DATE(t1.DtCriacao) < '2025-05-01' THEN 'Cliente intermediário'
+		WHEN DATE(t1.DtCriacao) < '2026-01-01' THEN 'Cliente recente'
+        ELSE 'Cliente muito recente'
+    END AS clientes_periodo,
+
+    COUNT(DISTINCT t1.IdCliente) AS qtd_clientes,
+    COUNT(t2.IdTransacao) AS qtd_transacoes,
+    ROUND(1.0 * COUNT(t2.IdTransacao) / COUNT(DISTINCT t1.IdCliente), 2) AS media_transacoes
+
+FROM clientes t1
+LEFT JOIN transacoes t2 ON t1.IdCliente = t2.IdCliente
+GROUP BY clientes_periodo;
+
+-- Resposta do Teo:
+SELECT
+    t1.IdCliente,
+    JULIANDAY('now') - JULIANDAY(DATE(t1.DtCriacao)) AS idade_base,
+    COUNT(t2.IdTransacao)
+
+FROM clientes AS t1
+
+LEFT JOIN transacoes t2 ON t1.IdCliente = t2.IdCliente;
+GROUP BY t1.IdCliente, idade_base
+
+
+-- 5. Quantidade de transações Acumuladas ao longo do tempo?
+SELECT *
+
+FROM transacoes
 
 
 
+-- 6. Quantidade de usuários cadastrados (absoluto e acumulado) ao longo do tempo?
+-- 7. Qual o dia da semana mais ativo de cada usuário?
+-- 8. Saldo de pontos acumulado de cada usuário
+
+
+
+
+
+
+-- 9. Dos clientes que começaram SQL no primeiro dia, quantos chegaram ao 5o dia?
+SELECT 
+	COUNT(DISTINCT t1.IdCliente) AS qtd_clientes
+    
+FROM transacoes t1
+
+INNER JOIN (
+    SELECT DISTINCT IdCliente
+    FROM transacoes
+    WHERE DATE(DtCriacao) = '2025-08-25'
+) t2
+    ON t1.IdCliente = t2.IdCliente
+
+WHERE DATE(t1.DtCriacao) = '2025-08-29';
+
+-- resposta Teo
+SELECT COUNT(DISTINCT IdCliente)
+
+FROM transacoes
+
+WHERE IdCliente IN (
+					SELECT DISTINCT IdCliente
+					FROM transacoes
+					WHERE DATE(DtCriacao) = '2025-08-25')
+AND DATE(DtCriacao) = '2025-08-29'
+
+
+-- 10. Como foi a curva de Churn do Curso de SQL?
+-- A ultima data foi a data máxima que houve transação na base de dados
+SELECT
+    IdCliente,
+    MAX(DATE(DtCriacao)) AS ultima_trans,
+
+    CAST(
+        JULIANDAY((SELECT MAX(DATE(DtCriacao)) FROM transacoes)) -
+        JULIANDAY(MAX(DATE(DtCriacao)))
+        AS INTEGER
+    ) AS dias_inativo
+
+FROM transacoes
+
+GROUP BY IdCliente;
+
+
+-- 11. Quem iniciou o curso no primeiro dia, em média assistiu quantas aulas? 
+SELECT *
+
+FROM transacoes
+
+WHERE IdCliente IN (
+					SELECT DISTINCT IdCliente
+					FROM transacoes
+					WHERE DATE(DtCriacao) = '2025-08-25'
+)
+
+
+
+
+
+
+
+
+
+
+
+
+
+-- 12. Dentre os clientes de janeiro/2025, quantos assistiram o curso de SQL?
+-- 13. Qual o dia com maior engajamento de cada aluno que iniciou o curso no dia 01?
 
