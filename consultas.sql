@@ -315,7 +315,7 @@ FROM total_clientes
 WITH total_trans AS (
     SELECT
         IdCliente,
-        COUNT(IdTransacao) AS qtd_trans,
+        COUNT(DISTINCT IdTransacao) AS qtd_trans,
         STRFTIME('%w', DtCriacao) AS dias_semana
     FROM transacoes
     GROUP BY IdCliente, dias_semana
@@ -327,7 +327,7 @@ ranking AS (
         qtd_trans,
         ROW_NUMBER() OVER (
             PARTITION BY IdCliente
-            ORDER BY qtd_trans DESC, dias_semana ASC
+            ORDER BY qtd_trans DESC, dias_semana DESC
         ) AS ranking
     FROM total_trans
 )
@@ -341,10 +341,18 @@ ORDER BY IdCliente;
 
 
 -- 8. Saldo de pontos acumulado de cada usuário
-
-
-
-
+WITH cliente_dia AS (
+	SELECT
+    	IdCliente,
+   		DATE(DtCriacao) AS data_trans,
+    	SUM(QtdePontos) AS total_pts
+	FROM transacoes
+	GROUP BY IdCliente, data_trans
+)
+SELECT 
+	*,
+	SUM(total_pts) OVER (PARTITION BY IdCliente ORDER BY data_trans) AS saldo_acumulado
+FROM cliente_dia;
 
 
 -- 9. Dos clientes que começaram SQL no primeiro dia, quantos chegaram ao 5o dia?
@@ -375,20 +383,23 @@ AND DATE(DtCriacao) = '2025-08-29';
 
 
 -- 10. Como foi a curva de Churn do Curso de SQL?
--- A ultima data foi a data máxima que houve transação na base de dados
-SELECT
-    IdCliente,
-    MAX(DATE(DtCriacao)) AS ultima_trans,
+WITH tb_clientes_d1 AS (
+	SELECT DISTINCT IdCliente
+	FROM transacoes
+	WHERE DATE(DtCriacao) >= '2025-08-25' AND DATE(DtCriacao) <= '2025-08-29'
+)
 
-    CAST(
-        JULIANDAY((SELECT MAX(DATE(DtCriacao)) FROM transacoes)) -
-        JULIANDAY(MAX(DATE(DtCriacao)))
-        AS INTEGER
-    ) AS dias_inativo
+SELECT 
+	DATE(t2.DtCriacao) AS dtdia,
+	COUNT(DISTINCT t1.IdCliente) qtd_clientes
 
-FROM transacoes
+FROM tb_clientes_d1 t1
+LEFT JOIN transacoes t2 ON t1.IdCliente = t2.IdCliente
 
-GROUP BY IdCliente;
+WHERE DATE(t2.DtCriacao) >= '2025-08-25' AND DATE(t2.DtCriacao) <= '2025-08-29'
+
+
+GROUP BY dtdia
 
 
 -- 11. Quem iniciou o curso no primeiro dia, em média assistiu quantas aulas? 
@@ -422,7 +433,7 @@ WITH cadastro_janeiro AS (
 	WHERE strftime('%Y-%m', DtCriacao) = '2025-01'
 )
 
-SELECT COUNT(DISTINCT t1.IdCliente)
+SELECT COUNT(DISTINCT t1.IdCliente) AS clientes_curso
 
 FROM transacoes t1
 
@@ -481,7 +492,7 @@ ranking AS (
         IdCliente,
         data_transacao,
         qtd_trans,
-        ROW_NUMBER() OVER (PARTITION BY IdCliente ORDER BY qtd_trans DESC) AS ranking
+        ROW_NUMBER() OVER (PARTITION BY IdCliente ORDER BY qtd_trans DESC) AS rk
     FROM total_transacao
 )
 
@@ -490,5 +501,5 @@ SELECT
     data_transacao AS data_engajamento,
     qtd_trans AS qtd_maxima
 FROM ranking
-WHERE ranking = 1
+WHERE rk = 1
 ORDER BY IdCliente;
