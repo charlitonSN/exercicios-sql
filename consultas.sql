@@ -503,3 +503,8 @@ SELECT
 FROM ranking
 WHERE rk = 1
 ORDER BY IdCliente;
+
+
+
+
+
